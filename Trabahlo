@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#define MAX 40
 //
 typedef struct Carta
 {
@@ -57,8 +56,8 @@ Pilha *CriarPilha(); // O baralho do jogo é uma pilha
 int PilhaVaz(Pilha *P);
 int PilhaCh(Pilha *P, int Max);
 int DesemPilha(Pilha *P, Carta *N);
-int EmPilhaInicio(Pilha *P, int Naipe, int Numero, int Poder, int Codigo);
-int EmpilhaCarta(Pilha *P, Carta X);
+int EmPilhaInicio(Pilha *P, int Naipe, int Numero, int Poder, int Codigo); // Empilha as cartas criadas no baralho
+int EmpilhaCarta(Pilha *P, Carta X);                                       // Empilha uma carta de volta ao baralho
 //
 int RemoverPOS(Jogador *J, int N, int POS, Carta *X, int Ind); // Remover uma carta da mão
 int ListaVAZ(Lista L);
@@ -73,16 +72,17 @@ void CriarMao(Pilha *P, Jogador *J, int QtdJog, int NumCartas, int POS); // Fun�
 //
 void MaosBets(Pilha *Baralho, Jogador *J, int N, int Turno, int Apostas[], int NAps, FILE *arq); // Dá as cartas e armazena as apostas de cada jogador
 void ImprimeCartas(Jogador *J, int N, int POS, FILE *arq);                                       // Imprime as cartas de um jogador
-void CompararBets(Jogador *J, int N, int Apostas[], int NAps, FILE *arq);                        // Compara a quantidade de rodadas vencidas pelos jogadores com seus palpites
+int ImprimeVidas(Jogador *J, int N, FILE *arq, int Vrfy);
+void CompararBets(Jogador *J, int N, int Apostas[], int NAps, FILE *arq); // Compara a quantidade de rodadas vencidas pelos jogadores com seus palpites
 //
-int Mortos(Jogador *J, int N);    // Verifica se apenas um jogador está vivo
-int NumCartasTurno(int Turno);    // Retorna a quantidade de cartas no turno
-void TrocarPe(Jogador *J, int N); // Muda o jogador que irá iniciar a rodada (o segundo jogador da ultima rodada se torna o primeiro)
-char LetraC(int Num);             // Transformar os numeros 1,8,9,10 em letras (A, Q, J, K)
-int MaisForte(Carta *Monte, int N);
+int Mortos(Jogador *J, int N);      // Verifica se apenas um jogador está vivo
+int NumCartasTurno(int Turno);      // Retorna a quantidade de cartas no turno
+int TrocarPe(Jogador *J, int N);    // Muda o jogador que irá iniciar a rodada (o segundo jogador da ultima rodada se torna o primeiro)
+char LetraC(int Num);               // Transformar os numeros 1,8,9,10 em letras (A, Q, J, K)
+int MaisForte(Carta *Monte, int N); // Verifica qual a maior carta do monte das cartas jogadas no turno
 //
 void Rodada(Pilha *P, Jogador *J, int N, FILE *arq); // Execuções de uma rodada
-void Partida(Pilha *Baralho, Jogador *J, int N);     // Todas as execuções de uma partida & Criação e gravação do arquivo .txt
+int Partida(Pilha *Baralho, Jogador *J, int N);      // Todas as execuções de uma partida & Criação e gravação do arquivo .txt
 //
 int main()
 {
@@ -108,14 +108,15 @@ int main()
                 printf("\n                                                      \n\n");
             }
             CriarBaralho(Baralho);
-            Partida(Baralho, J, N);
+            Vrfy = Partida(Baralho, J, N);
+            free(J);
             free(Baralho);
         }
         else
         {
             printf("\n\nFechando...\n");
-            free(Baralho);
             free(J);
+            free(Baralho);
             return 0;
         }
     } while (Vrfy == 1);
@@ -216,7 +217,7 @@ void LiberarFila(Fila *F)
 {
     if (FilaVaz(F->Inicio) == 1)
     {
-        return 0;
+        exit(1);
     }
     else
     {
@@ -228,7 +229,6 @@ void LiberarFila(Fila *F)
             free(Aux);
         }
         free(F);
-        return 1;
     }
 }
 int Enfileirar(Fila *F, Jogador N)
@@ -399,51 +399,48 @@ void MaosBets(Pilha *Baralho, Jogador *J, int N, int Turno, int Apostas[], int N
     resto = NumCartas;
     for (i = 0; i < N; i++)
     {
-        if (J[i].Vidas > 0)
+        if (i == N - 1)
         {
-            if (i == N - 1)
+            add = -9;
+            CriarMao(Baralho, J, N, NumCartas, i);
+            printf("\nTurno do jogador %s\nSuas cartas sao:\n", J[i].Nome);
+            fprintf(arq, "\n\nTurno do jogador %s\nSuas cartas sao\n\n", J[i].Nome);
+            ImprimeCartas(J, N, i, arq);
+            if (resto < 0)
             {
-                add = -9;
-                CriarMao(Baralho, J, N, NumCartas, i);
-                printf("\nTurno do jogador %s\nSuas cartas sao:\n", J[i].Nome);
-                fprintf(arq, "\nTurno do jogador %s\nSuas cartas sao\n", J[i].Nome);
-                ImprimeCartas(J, N, i, arq);
-                if (resto < 0)
+                while (add > NumCartas || add < 0 || add == resto)
                 {
-                    while (add > NumCartas || add < 0 || add == resto)
-                    {
-                        printf("\nVoce podera vencer quantas rodadas quiser, quantas ira fazer?              ");
-                        scanf("%d", &add);
-                        fprintf(arq, "\nAposta do jogador %s = %d rodadas", J[i].Nome, add);
-                        Apostas[i] = add;
-                    }
-                }
-                else
-                {
-                    while (add > NumCartas || add < 0 || add == resto)
-                    {
-                        printf("\nVoce nao podera vencer exatamente | %d |, quantas voce consegue fazer das %d cartas?            \n", resto, NumCartas);
-                        scanf("%d", &add);
-                        fprintf(arq, "\nAposta do jogador %s = %d rodadas", J[i].Nome, add);
-                        Apostas[i] = add;
-                    }
+                    printf("\nVoce podera vencer quantas rodadas quiser, quantas ira fazer?              ");
+                    scanf("%d", &add);
+                    fprintf(arq, "\n\nAposta do jogador %s = %d rodadas\n\n", J[i].Nome, add);
+                    Apostas[i] = add;
                 }
             }
             else
             {
-                add = -9;
-                CriarMao(Baralho, J, N, NumCartas, i);
-                printf("\nTurno do jogador %s\nSuas cartas sao:\n", J[i].Nome);
-                ImprimeCartas(J, N, i, arq);
-                while (add > NumCartas || add < 0)
+                while (add > NumCartas || add < 0 || add == resto)
                 {
-                    printf("\nQuantas voce consegue fazer das %d cartas?                  ", NumCartas);
+                    printf("\nVoce nao podera vencer exatamente | %d |, quantas voce consegue fazer das %d cartas?            \n", resto, NumCartas);
                     scanf("%d", &add);
-                    fprintf(arq, "\nAposta do jogador %s = %d rodadas", J[i].Nome, add);
+                    fprintf(arq, "\n\nAposta do jogador %s = %d rodadas\n\n", J[i].Nome, add);
                     Apostas[i] = add;
                 }
-                resto -= add;
             }
+        }
+        else
+        {
+            add = -9;
+            CriarMao(Baralho, J, N, NumCartas, i);
+            printf("\nTurno do jogador %s\nSuas cartas sao:\n", J[i].Nome);
+            ImprimeCartas(J, N, i, arq);
+            while (add > NumCartas || add < 0)
+            {
+                printf("\nQuantas voce consegue fazer das %d cartas?                  ", NumCartas);
+                scanf("%d", &add);
+                fprintf(arq, "\n\nAposta do jogador %s = %d rodadas\n\n", J[i].Nome, add);
+                Apostas[i] = add;
+            }
+            resto -= add;
         }
     }
 }
@@ -482,73 +479,98 @@ void ImprimeCartas(Jogador *J, int N, int POS, FILE *arq)
         i++;
     }
 }
-void CompararBets(Jogador *J, int N, int Apostas[], int NAps, FILE *arq)
+int ImprimeVidas(Jogador *J, int N, FILE *arq, int Vrfy)
 {
-    int i, r;
-    for (i = 0; i < N; i++)
+    int i, j;
+    if (Vrfy != 1)
     {
-        if (J[i].Vidas > 1)
+        for (i = 0; i < N; i++)
         {
-            r = Apostas[i] - J[i].RoundsV;
-            if (r == 1 || r == -1)
+            if (J[i].Vidas > 0)
             {
-                printf("\n    O jogador %s perdeu 1 vida | %d turnos vencidos | Aposta era %d |    \n", J[i].Nome, J[i].RoundsV, Apostas[i]);
-                fprintf(arq, "\nJogador %s perdeu 1 vida |%d turnos vencidos|Aposta era %d|\n", J[i].Nome, J[i].RoundsV, Apostas[i]);
-                J[i].Vidas--;
-                J[i].RoundsV = 0;
+                printf("\n O Jogador %s esta vivo com %d vidas  :) \n\n", J[i].Nome, J[i].Vidas);
+                fprintf(arq, "\nJogador %s esta vivo com %d vidas\n\n", J[i].Nome, J[i].Vidas);
             }
-            else if (r > 1 || r < -1)
+            else
             {
-                printf("\n    O jogador %s perdeu 2 vidas  | %d turnos vencidos | Aposta era %d |    \n", J[i].Nome, J[i].RoundsV, Apostas[i]);
-                fprintf(arq, "\nJogador %s perdeu 2 vida |%d turnos vencidos|Aposta era %d|\n", J[i].Nome, J[i].RoundsV, Apostas[i]);
-                J[i].Vidas -= 2;
-                J[i].RoundsV = 0;
-            }
-            else if (r == 0)
-            {
-                printf("\n    O jogador %s acertou sua aposta | %d turnos vencidos | Aposta era %d |    \n", J[i].Nome, J[i].RoundsV, Apostas[i]);
-                fprintf(arq, "\nJogador %s acertou sua aposta |%d turnos vencidos|Aposta era %d|\n", J[i].Nome, J[i].RoundsV, Apostas[i]);
-                J[i].RoundsV = 0;
+                printf("\n O Jogador %s esta morto     ;-; \n\n", J[i].Nome);
+                fprintf(arq, "\nJogador %s esta morto\n\n", J[i].Nome);
             }
         }
-    }
-}
-// VIDAS AINDA ESTÃO FICANDO 1
-int Mortos(Jogador *J, int N)
-{
-    int cont = 0, i, n = N - 1;
-    if (N == 2)
-    {
-        if (J[0].Vidas == 0 || J[1].Vidas == 0)
-        {
-            return 1;
-        }
-        else
-        {
-            return 0;
-        }
+        return 0;
     }
     else
     {
         for (i = 0; i < N; i++)
         {
-            if (J[i].Vidas == 0)
+            if (J[i].Vidas > 0)
             {
-                cont++;
+                printf("\n O Jogador %s esta vivo com %d vidas  :) \n\n", J[i].Nome, J[i].Vidas);
+                fprintf(arq, "\nJogador %s esta vivo com %d vidas\n\n", J[i].Nome, J[i].Vidas);
+                j = i;
+            }
+            else
+            {
+                printf("\n O Jogador %s esta morto     ;-; \n\n", J[i].Nome);
+                fprintf(arq, "\nJogador %s esta morto\n\n", J[i].Nome);
             }
         }
-        if (cont == n)
+        return j;
+    }
+}
+void CompararBets(Jogador *J, int N, int Apostas[], int NAps, FILE *arq)
+{
+    int i, r;
+    for (i = 0; i < N; i++)
+    {
+        r = Apostas[i] - J[i].RoundsV;
+        if (r == 1 || r == -1)
         {
-            return 1;
+            printf("\n    O jogador %s perdeu 1 vida | %d turnos vencidos | Aposta era %d |    \n", J[i].Nome, J[i].RoundsV, Apostas[i]);
+            fprintf(arq, "\nJogador %s perdeu 1 vida |%d turnos vencidos|Aposta era %d|\n", J[i].Nome, J[i].RoundsV, Apostas[i]);
+            J[i].Vidas--;
+            J[i].RoundsV = 0;
         }
-        else if (cont == N)
+        else if (r > 1 || r < -1)
         {
-            return 2;
+            printf("\n    O jogador %s perdeu 2 vidas  | %d turnos vencidos | Aposta era %d |    \n", J[i].Nome, J[i].RoundsV, Apostas[i]);
+            fprintf(arq, "\nJogador %s perdeu 2 vida |%d turnos vencidos|Aposta era %d|\n", J[i].Nome, J[i].RoundsV, Apostas[i]);
+            J[i].Vidas -= 2;
+            J[i].RoundsV = 0;
+        }
+        else if (r == 0)
+        {
+            printf("\n    O jogador %s acertou sua aposta | %d turnos vencidos | Aposta era %d |    \n", J[i].Nome, J[i].RoundsV, Apostas[i]);
+            fprintf(arq, "\nJogador %s acertou sua aposta |%d turnos vencidos|Aposta era %d|\n", J[i].Nome, J[i].RoundsV, Apostas[i]);
+            J[i].RoundsV = 0;
+        }
+    }
+}
+int Mortos(Jogador *J, int N)
+{
+    int i, n = N - 1, vivos = 0, morto = 0;
+    for (i = 0; i < N; i++)
+    {
+        if (J[i].Vidas > 0)
+        {
+            vivos++;
         }
         else
         {
-            return 0;
+            morto++;
         }
+    }
+    if (vivos == 1)
+    {
+        return 1;
+    }
+    else if (morto == N)
+    {
+        return 2;
+    }
+    else
+    {
+        return 0;
     }
 }
 int NumCartasTurno(int Turno)
@@ -590,22 +612,28 @@ int NumCartasTurno(int Turno)
         break;
     }
 }
-void TrocarPe(Jogador *J, int N)
+int TrocarPe(Jogador *J, int N)
 {
     Fila *F = CriarFila();
     Jogador Aux;
-    int i, vrfy;
+    int i, vrfy, vivos = 0;
     for (i = 0; i < N; i++)
     {
-        vrfy = Enfileirar(F, J[i]);
+        if (J[i].Vidas > 0)
+        {
+            vrfy = Enfileirar(F, J[i]);
+            vivos++;
+        }
     }
     vrfy = Desenfileirar(F, &Aux);
     vrfy = Enfileirar(F, Aux);
+    N = vivos;
     for (i = 0; i < N; i++)
     {
         vrfy = Desenfileirar(F, &J[i]);
     }
     LiberarFila(F);
+    return N;
 }
 char LetraC(int Num)
 {
@@ -644,7 +672,7 @@ int MaisForte(Carta *Monte, int N)
     }
     return Ind;
 }
-// FAZER ALGO PARA QUE QUEM TIVER MORRIDO NÃO CONTINUE JOGANDO
+//
 void Rodada(Pilha *P, Jogador *J, int N, FILE *arq)
 {
     int i, cont = 0, Ind, Vrfy;
@@ -653,8 +681,8 @@ void Rodada(Pilha *P, Jogador *J, int N, FILE *arq)
     Monte = (Carta *)malloc(N * sizeof(Carta));
     for (i = 0; i < N; i++)
     {
-        printf("\nTurno do jogador %s\nSuas cartas sao:\n", J[i].Nome);
-        fprintf(arq, "\nTurno do jogador %s\nSuas cartas sao:\n", J[i].Nome);
+        printf("\n---------------------------------\nTurno do jogador %s\nSuas cartas sao:\n", J[i].Nome);
+        fprintf(arq, "\n---------------------------------\nTurno do jogador %s\nSuas cartas sao:\n", J[i].Nome);
         ImprimeCartas(J, N, i, arq);
         do
         {
@@ -666,12 +694,13 @@ void Rodada(Pilha *P, Jogador *J, int N, FILE *arq)
         {
             Letra = LetraC(J[i].Mao.vet[Ind].Numero);
             printf("\n                       ****** A carta |  %c  %c  | foi jogada ******\n\n", J[i].Mao.vet[Ind].Naipe + 2, Letra);
+            fprintf(arq, "\n\n||Carta | %d %c | foi jogada||\n\n", J[i].Mao.vet[Ind].Naipe, Letra);
         }
         else
         {
             printf("\n                       ****** A carta |  %c  %d  | foi jogada ******\n\n", J[i].Mao.vet[Ind].Naipe + 2, J[i].Mao.vet[Ind].Numero);
+            fprintf(arq, "\n\n||Carta | %d %d | foi jogada||\n\n", J[i].Mao.vet[Ind].Naipe, J[i].Mao.vet[Ind].Numero);
         }
-        fprintf(arq, "\nCarta %d - %d jogada\n", J[i].Mao.vet[Ind].Naipe, J[i].Mao.vet[Ind].Numero);
         Vrfy = RemoverPOS(J, N, i, &Monte[i], Ind);
         if (Vrfy == 0)
         {
@@ -682,23 +711,25 @@ void Rodada(Pilha *P, Jogador *J, int N, FILE *arq)
         {
             printf("Erro\n");
         }
+        fprintf(arq, "\n\n---------------------------------\n\n");
     }
     Ind = MaisForte(Monte, N);
     if (Monte[Ind].Numero > 7 || Monte[Ind].Numero == 1)
     {
         Letra = LetraC(Monte[Ind].Numero);
         printf("---------------------------------------------------------------------------\n\n   A Carta|  %c  %c  |foi a maior\n\n    O jogador %s venceu o turno\n\n---------------------------------------------------------------------------\n", Monte[Ind].Naipe + 2, Letra, J[Ind].Nome);
-        fprintf(arq, "\nCarta %c %d foi a maior -> O jogador %s venceu o turno\n", Monte[Ind].Naipe, Letra, J[Ind].Nome);
+        fprintf(arq, "\n\nCarta | %c %d | foi a maior -> O jogador %s venceu o turno\n\n", Monte[Ind].Naipe, Letra, J[Ind].Nome);
     }
     else
     {
         printf("---------------------------------------------------------------------------\n\n    A Carta|  %c  %d  |foi a maior\n\n    O jogador %s venceu o turno\n\n---------------------------------------------------------------------------", Monte[Ind].Naipe + 2, Monte[Ind].Numero, J[Ind].Nome);
-        fprintf(arq, "\nCarta %d %d foi a maior -> O jogador %s venceu o turno\n", Monte[Ind].Naipe, Monte[Ind].Numero, J[Ind].Nome);
+        fprintf(arq, "\n\nCarta | %c %d | foi a maior -> O jogador %s venceu o turno\n\n", Monte[Ind].Naipe, Monte[Ind].Numero, J[Ind].Nome);
     }
     J[Ind].RoundsV++;
 }
-void Partida(Pilha *Baralho, Jogador *J, int N)
+int Partida(Pilha *Baralho, Jogador *J, int N)
 {
+    int i, Vrfy = 0, j, Apostas[8], n = N - 1, Turno = 1;
     FILE *arq;
     arq = fopen("Whoresson.txt", "w");
     if (arq == NULL)
@@ -706,83 +737,50 @@ void Partida(Pilha *Baralho, Jogador *J, int N)
         printf("Nao foi possivel ler o arquivo\n");
         exit(1);
     }
-    int i, Vrfy = 0, j, Apostas[8], n = N - 1, Turno = 1;
-    fprintf(arq, "Naipes: 1 = COPAS, 2 = OUROS, 3 = PAUS, 4 = ESPADAS\n\nCARTAS -> NAIPE - NUMERO/LETRA\n\n");
+
+    fprintf(arq, "\n\nCARTAS -> | NAIPE | NUMERO/LETRA |\n\n");
     fprintf(arq, "\n\n\n\n------------------------------------------------------------------------------------------\n");
+
     while (Vrfy != 1 || Vrfy != 2)
     {
-        printf("\n\n\n             *****  RODADA %d  *****\n", Turno);
-        fprintf(arq, "Rodada -> %d\n", Turno);
+        printf("\n\n\n             *****  RODADA %d  *****\n\n", Turno);
+        fprintf(arq, "\n\nRodada -> %d\n", Turno);
+
         Embaralhar(Baralho);
         MaosBets(Baralho, J, N, Turno, Apostas, N, arq);
+
         printf("\n\n\n\n------------------------------------------------------------------------------------------\n");
-        while (J[n].Mao.fim != 0)
+
+        while (J[n].Mao.fim != 0) // OS TURNOS ACONTECERÂO ENQUANTO O ULTIMO JOGADOR DA FILA TENHA CARTAS NA MÂO
         {
             printf("\n\n\n");
             Rodada(Baralho, J, N, arq);
-            if (Mortos(J, N) == 1)
-            {
-                break;
-            }
         }
         CompararBets(J, N, Apostas, N, arq);
+
         printf("\n\n---------------------------------------------------------------------------\n");
-        TrocarPe(J, N);
+
         Vrfy = Mortos(J, N);
-        if (Vrfy == 2)
+        if (Vrfy == 2) // OS ULTIMOS JOGADORES MORRERAM JUNTOS
         {
-            for (i = 0; i < N; i++)
-            {
-                if (J[i].Vidas > 0)
-                {
-                    printf("\n O Jogador %s esta vivo com %d vidas  :) ", J[i].Nome, J[i].Vidas);
-                    fprintf(arq, "\nJogador %s esta vivo com %d vidas\n", J[i].Nome, J[i].Vidas);
-                }
-                else
-                {
-                    printf("\n\n O Jogador %s esta morto     ;-; \n", J[i].Nome);
-                    fprintf(arq, "\nJogador %s esta morto\n", J[i].Nome);
-                }
-            }
-            printf("\n\n\n          |       NAO TEVE VENCEDORES       |\n\n\n---------------------------------------------------------------------------\n\n\n", J[j].Nome, J[j].Vidas);
-            fprintf(arq, "\nNAO TEVE VENCEDORES\n");
+            j = ImprimeVidas(J, N, arq, Vrfy);
+            printf("\n\n\n          |       NAO HOUVERAM VENCEDORES       |\n\n\n---------------------------------------------------------------------------\n\n\n", J[j].Nome, J[j].Vidas);
+            fprintf(arq, "\nNAO HOUVERAM VENCEDORES\n");
+            return 1;
         }
-        else if (Vrfy == 1)
+        else if (Vrfy == 1) // 1 VITORIOSO
         {
-            for (i = 0; i < N; i++)
-            {
-                if (J[i].Vidas > 0)
-                {
-                    printf("\n O Jogador %s esta vivo com %d vidas  :) ", J[i].Nome, J[i].Vidas);
-                    fprintf(arq, "\nJogador %s esta vivo com %d vidas\n", J[i].Nome, J[i].Vidas);
-                    j = i;
-                }
-                else
-                {
-                    printf("\n O Jogador %s esta morto     ;-; ", J[i].Nome);
-                    fprintf(arq, "\nJogador %s esta morto\n", J[i].Nome);
-                }
-            }
-            printf("\n\n\n          |       O JOGADOR %s VENCEU COM %d VIDAS RESTANTES    |\n\n\n---------------------------------------------------------------------------\n\n\n", J[j].Nome, J[j].Vidas);
+            j = ImprimeVidas(J, N, arq, Vrfy);
+            printf("\n---------------------------------------------------------------------------\n\n          |       O JOGADOR %s VENCEU COM %d VIDAS RESTANTES    |\n\n\n---------------------------------------------------------------------------\n\n\n", J[j].Nome, J[j].Vidas);
             fprintf(arq, "\nJogador %s VENCEU\n", J[j].Nome);
+            return 1;
         }
-        else
+        else // NADA ACONTECEU AINDA
         {
-            for (i = 0; i < N; i++)
-            {
-                if (J[i].Vidas > 0)
-                {
-                    printf("\n O Jogador %s esta vivo com %d vidas  :) ", J[i].Nome, J[i].Vidas);
-                    fprintf(arq, "\nJogador %s esta vivo com %d vidas\n", J[i].Nome, J[i].Vidas);
-                }
-                else
-                {
-                    printf("\n\n O Jogador %s esta morto     ;-; \n", J[i].Nome);
-                    fprintf(arq, "\nJogador %s esta morto\n", J[i].Nome);
-                }
-            }
+            j = ImprimeVidas(J, N, arq, Vrfy);
         }
 
+        N = TrocarPe(J, N);
         Turno++;
     }
     fclose(arq);
